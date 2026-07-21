@@ -11,6 +11,10 @@ import symbiosis from "./symbiosis.jpg";
 import ts from "./ts.jpg";
 import ucdavis from "./ucdavis.jpg";
 import engg from "./engg.jpg";
+import accentureLogo from "./accenture-logo.png";
+import certEmail from "./cert-email.png";
+import certAdmin from "./cert-admin.png";
+import champions from "./champions.png";
 
 /* ============================================================
    MUSIC-STREAMING PORTFOLIO — Sriya Mitra
@@ -520,6 +524,12 @@ function CD({
         vel.current += (target - vel.current) * 0.045; // easing on start/stop
         if (Math.abs(vel.current) < 0.002 && target === 0) vel.current = 0;
         angle.current += vel.current;
+        // once spinning has stopped, glide back to upright so the photo sits straight
+        if (target === 0 && vel.current === 0) {
+          const upright = Math.round(angle.current / 360) * 360;
+          angle.current += (upright - angle.current) * 0.08;
+          if (Math.abs(upright - angle.current) < 0.05) angle.current = upright;
+        }
       }
       if (rotRef.current)
         rotRef.current.style.transform = `rotate(${angle.current}deg)`;
@@ -737,6 +747,200 @@ function CD({
   );
 }
 
+/* ============================================================
+   STICKER — draggable decorative element on album pages.
+   Visitors can pick these up and move them around.
+   ============================================================ */
+function Sticker({
+  src,
+  right = 0,
+  y = 0,
+  w = 90,
+  rot = 0,
+  resizable = false,
+  scale = 1,
+  label,
+}) {
+  const [pos, setPos] = useState(null); // null = anchored to the right; {x,y} after first drag
+  const [baseW, setBaseW] = useState(w); // un-scaled width; user resize edits this
+  const drag = useRef(null);
+  const resize = useRef(null);
+  const [lifted, setLifted] = useState(false);
+  const [hover, setHover] = useState(false);
+
+  const width = baseW * scale;
+
+  const onDown = (e) => {
+    const el = e.currentTarget.parentElement;
+    const startPos = pos || { x: el.offsetLeft, y: el.offsetTop };
+    drag.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: startPos.x,
+      origY: startPos.y,
+    };
+    if (!pos) setPos(startPos);
+    setLifted(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  };
+  const onMove = (e) => {
+    if (!drag.current) return;
+    setPos({
+      x: drag.current.origX + (e.clientX - drag.current.startX),
+      y: drag.current.origY + (e.clientY - drag.current.startY),
+    });
+  };
+  const onUp = () => {
+    drag.current = null;
+    setLifted(false);
+  };
+
+  const onWheel = (e) => {
+    if (!resizable) return;
+    e.preventDefault();
+    setBaseW((cur) =>
+      Math.max(80, Math.min(560, cur - (e.deltaY * 0.4) / scale))
+    );
+  };
+  const onHandleDown = (e) => {
+    e.stopPropagation();
+    resize.current = { startX: e.clientX, origW: baseW };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onHandleMove = (e) => {
+    if (!resize.current) return;
+    setBaseW(
+      Math.max(
+        80,
+        Math.min(
+          560,
+          resize.current.origW + (e.clientX - resize.current.startX) / scale
+        )
+      )
+    );
+  };
+  const onHandleUp = () => {
+    resize.current = null;
+  };
+
+  return (
+    <div
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      style={{
+        position: "absolute",
+        ...(pos
+          ? { left: pos.x, top: pos.y }
+          : { right: right * scale, top: y * scale }),
+        width,
+        zIndex: 20,
+        transform: `rotate(${rot}deg) scale(${lifted ? 1.06 : 1})`,
+        transition: "transform .15s ease",
+      }}
+    >
+      <img
+        src={src}
+        alt={label || "sticker"}
+        draggable={false}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        onWheel={onWheel}
+        style={{
+          width: "100%",
+          display: "block",
+          cursor: lifted ? "grabbing" : "grab",
+          touchAction: "none",
+          userSelect: "none",
+          filter: lifted
+            ? "drop-shadow(0 14px 24px rgba(0,0,0,0.55))"
+            : "drop-shadow(0 6px 12px rgba(0,0,0,0.45))",
+          transition: "filter .15s ease",
+        }}
+      />
+      {resizable && (hover || resize.current) && (
+        <div
+          onPointerDown={onHandleDown}
+          onPointerMove={onHandleMove}
+          onPointerUp={onHandleUp}
+          onPointerCancel={onHandleUp}
+          title="Drag to resize (or scroll on the sticker)"
+          style={{
+            position: "absolute",
+            right: -7,
+            bottom: -7,
+            width: 16,
+            height: 16,
+            borderRadius: "50%",
+            background: "#b347f5",
+            border: "2px solid #fff",
+            cursor: "nwse-resize",
+            touchAction: "none",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Hook: measure an element's width so stickers can scale with the screen */
+function useContainerWidth() {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(1500);
+  useEffect(() => {
+    if (!ref.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setWidth(e.contentRect.width);
+    });
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width];
+}
+
+/* Stickers per album page — add entries for any album id.
+   x/y are px offsets inside the album detail area (0,0 = top-left). */
+const STICKERS = {
+  accenture: [
+    {
+      src: accentureLogo,
+      right: 620,
+      y: 48,
+      w: 50,
+      rot: 0,
+      label: "Accenture logo",
+    },
+    {
+      src: certAdmin,
+      right: 420,
+      y: 0,
+      w: 95,
+      rot: 0,
+      label: "SF Marketing Cloud Administrator",
+    },
+    {
+      src: certEmail,
+      right: 470,
+      y: 165,
+      w: 100,
+      rot: 0,
+      label: "SF Marketing Cloud Email Specialist",
+    },
+    {
+      src: champions,
+      right: 10,
+      y: 15,
+      w: 230,
+      rot: 3,
+      resizable: true,
+      label: "Champions of the Quarter",
+    },
+  ],
+};
+
 /* ---------------- small bits ---------------- */
 const NAV = [
   { id: "home", label: "Home", icon: "M3 11.5 12 4l9 7.5M5.5 10v9h13v-9" },
@@ -829,6 +1033,9 @@ export default function App() {
       };
     });
   };
+  const [detailRef, detailWidth] = useContainerWidth();
+  // stickers were laid out against a ~1500px-wide reference; scale to the actual container
+  const stickerScale = Math.max(0.5, Math.min(1.15, detailWidth / 1500));
   const [activeAlbum, setActiveAlbum] = useState(null); // album id or null
   const [nowPlaying, setNowPlaying] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1066,13 +1273,23 @@ export default function App() {
                 ← Back
               </button>
               <div
+                ref={detailRef}
                 style={{
                   display: "flex",
                   gap: 44,
                   flexWrap: "wrap",
                   alignItems: "flex-start",
+                  position: "relative",
                 }}
               >
+                {detailWidth > 700 &&
+                  (STICKERS[open.id] || []).map((st, i) => (
+                    <Sticker
+                      key={open.id + i + "-" + Math.round(stickerScale * 100)}
+                      {...st}
+                      scale={stickerScale}
+                    />
+                  ))}
                 <CD
                   image={COVERS[open.id]}
                   position={posStr(open.id)}
@@ -1235,7 +1452,7 @@ export default function App() {
               </h1>
               <p style={{ fontSize: 15.5, lineHeight: 1.7, color: T.cardFg }}>
                 Analyst and builder working where marketing, data engineering,
-                and product analytics meet. Six years across Accenture, EY, and
+                and product analytics meet. Four years across Accenture, EY, and
                 TCS — from enterprise data pipelines to audience segmentation
                 for 100K+ users — now completing an MS in Business Analytics at
                 UC Davis.
@@ -1492,12 +1709,9 @@ export default function App() {
                   height: 48,
                   borderRadius: "50%",
                   objectFit: "cover",
-                  animation: isPlaying ? "spin 6s linear infinite" : "none",
                   border: `2px solid ${T.muted}`,
                 }}
               />
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }
-                @media (prefers-reduced-motion: reduce) { footer img { animation: none !important; } }`}</style>
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
@@ -1544,7 +1758,9 @@ export default function App() {
           </button>
           <button
             className="pill"
-            onClick={() => (np ? setIsPlaying((p) => !p) : play(featured.id))}
+            onClick={() =>
+              np ? setIsPlaying((p) => !p) : play(open ? open.id : featured.id)
+            }
             aria-label={isPlaying ? "Pause" : "Play"}
             style={{
               width: 46,
